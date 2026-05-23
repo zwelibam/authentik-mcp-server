@@ -1,0 +1,5 @@
+package: authentik
+generate:
+  client: true
+  models: true
+output: internal/authentik/generated.go
