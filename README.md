@@ -107,7 +107,7 @@ Restart Claude Code, then use the tools directly in conversation:
 |---------|----------|---------|-------------|
 | `AUTHENTIK_URL` | ✅ | — | Base URL of your Authentik instance |
 | `AUTHENTIK_TOKEN` | ✅ | — | API token (Settings → System → Tokens) |
-| `AUTHENTIK_TLS_SKIP_VERIFY` | — | `true` | Skip TLS verification (useful for self-signed certs) |
+| `AUTHENTIK_TLS_SKIP_VERIFY` | — | `false` | Set to `true` to disable TLS verification (default: verify — use for self-signed certs) |
 
 ## Architecture
 
