@@ -11,6 +11,13 @@ import (
 	"github.com/zwelibam/authentik-mcp-server/internal/authentik"
 )
 
+func sanitizeMD(s string) string {
+	s = strings.ReplaceAll(s, "|", `\|`)
+	s = strings.ReplaceAll(s, "\n", " ")
+	s = strings.ReplaceAll(s, "\r", "")
+	return s
+}
+
 func RegisterAuditRecentSecurityEvents(s *server.MCPServer, c *authentik.Client) {
 	tool := mcp.NewTool("audit_recent_security_events",
 		mcp.WithDescription("Returns a markdown table of recent security events (login_failed, policy_denied, secret_view)."),
@@ -55,7 +62,7 @@ func RegisterAuditRecentSecurityEvents(s *server.MCPServer, c *authentik.Client)
 				username = e.User.Username
 			}
 			fmt.Fprintf(&sb, "| %s | %s | %s | %s |\n",
-				e.DateTime, e.Action, username, e.ClientIP)
+				sanitizeMD(e.DateTime), sanitizeMD(e.Action), sanitizeMD(username), sanitizeMD(e.ClientIP))
 		}
 
 		return mcp.NewToolResultText(sb.String()), nil

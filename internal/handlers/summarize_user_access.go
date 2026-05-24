@@ -29,10 +29,17 @@ func RegisterSummarizeUserAccess(s *server.MCPServer, c *authentik.Client) {
 		if err != nil {
 			return nil, fmt.Errorf("fetching user: %w", err)
 		}
-		if len(users) == 0 {
+		var matched *authentik.User
+		for i := range users {
+			if users[i].Username == username {
+				matched = &users[i]
+				break
+			}
+		}
+		if matched == nil {
 			return mcp.NewToolResultError(fmt.Sprintf("user %q not found", username)), nil
 		}
-		user := users[0]
+		user := *matched
 
 		groups, err := c.GetGroupsForUser(ctx, user.PK)
 		if err != nil {

@@ -86,7 +86,7 @@ func (r *retryTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 
 // NewClientWrapper creates a new Authentik client from environment variables.
 // Requires AUTHENTIK_URL and AUTHENTIK_TOKEN.
-// Set AUTHENTIK_TLS_SKIP_VERIFY=false to enable TLS verification (default: skip).
+// Set AUTHENTIK_TLS_SKIP_VERIFY=true to disable TLS verification (default: verify).
 func NewClientWrapper(ctx context.Context) (*Client, error) {
 	baseURL := os.Getenv("AUTHENTIK_URL")
 	token := os.Getenv("AUTHENTIK_TOKEN")
@@ -97,7 +97,7 @@ func NewClientWrapper(ctx context.Context) (*Client, error) {
 		return nil, fmt.Errorf("AUTHENTIK_TOKEN is required")
 	}
 
-	skipVerify := os.Getenv("AUTHENTIK_TLS_SKIP_VERIFY") != "false"
+	skipVerify := os.Getenv("AUTHENTIK_TLS_SKIP_VERIFY") == "true"
 	if skipVerify {
 		slog.Warn("TLS verification disabled", "hint", "set AUTHENTIK_TLS_SKIP_VERIFY=false to enable")
 	}
