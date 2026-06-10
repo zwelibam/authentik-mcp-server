@@ -16,9 +16,17 @@ func Run(ctx context.Context) error {
 	}
 	slog.Info("authentik client ready", "url", c.BaseURL())
 
-	s := server.NewMCPServer("authentik-mcp-server", "0.1.0")
+	s := server.NewMCPServer("authentik-mcp-server", "0.2.0")
+
+	// Phase 1+2 (read-only)
 	handlers.RegisterSummarizeUserAccess(s, c)
 	handlers.RegisterAuditRecentSecurityEvents(s, c)
+
+	// Phase 3 (write operations)
+	handlers.RegisterListGroups(s, c)
+	handlers.RegisterCreateUser(s, c)
+	handlers.RegisterSetUserPassword(s, c)
+	handlers.RegisterManageUserGroup(s, c)
 
 	slog.Info("starting MCP server", "transport", "stdio")
 	return server.ServeStdio(s)
