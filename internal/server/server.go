@@ -23,6 +23,8 @@ func Run(ctx context.Context) error {
 	handlers.RegisterSummarizeUserAccess(s, c)
 	handlers.RegisterAuditRecentSecurityEvents(s, c)
 	handlers.RegisterListGroups(s, c)
+	handlers.RegisterListApplications(s, c)
+	handlers.RegisterCheckPolicy(s, c)
 
 	// Phase 3 (write operations)
 	if os.Getenv("AUTHENTIK_ENABLE_WRITE") == "true" {
@@ -30,6 +32,7 @@ func Run(ctx context.Context) error {
 		handlers.RegisterCreateUser(s, c)
 		handlers.RegisterSetUserPassword(s, c)
 		handlers.RegisterManageUserGroup(s, c)
+		handlers.RegisterManageOutpost(s, c)
 	} else {
 		slog.Info("write tools are disabled; set AUTHENTIK_ENABLE_WRITE=true to enable them")
 	}

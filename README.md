@@ -6,6 +6,20 @@ Exposes Authentik identity operations as callable tools in [Claude Code](https:/
 
 ## Tools
 
+| Tool | Access | Purpose |
+|------|--------|---------|
+| `summarize_user_access` | Read | Summarize a user's identity state and access |
+| `audit_recent_security_events` | Read | List recent security-relevant events |
+| `list_groups` | Read | List and filter groups |
+| `list_applications` | Read | List and filter applications |
+| `check_policy` | Read | Approximate a user's application access posture from policy bindings |
+| `create_user` | Write-gated | Create a user |
+| `set_user_password` | Write-gated | Set a user's password |
+| `manage_user_group` | Write-gated | Add or remove a user from a group |
+| `manage_outpost` | Write-gated | List outposts or refresh an outpost configuration |
+
+Write-gated tools are registered only when `AUTHENTIK_ENABLE_WRITE=true`.
+
 ### `summarize_user_access`
 
 Returns a structured JSON summary of a user's identity, group memberships, recent activity, and accessible applications.
@@ -15,8 +29,8 @@ Returns a structured JSON summary of a user's identity, group memberships, recen
 **Output:**
 ```json
 {
-  "username": "alice",
-  "email": "alice@example.com",
+  "username": "<username>",
+  "email": "<user@example.com>",
   "is_active": true,
   "last_login": "2026-01-15T09:00:00Z",
   "groups": ["admins", "vpn-users"],
@@ -37,7 +51,7 @@ Returns a markdown table of recent security-relevant events: `login_failed`, `po
 ```
 | DateTime | Action | Username | ClientIP |
 |----------|--------|----------|----------|
-| 2026-01-15T09:00:00Z | login_failed | alice | 192.0.2.10 |
+| 2026-01-15T09:00:00Z | login_failed | &lt;username&gt; | 192.0.2.10 |
 ```
 
 ## Quick Start
@@ -98,7 +112,7 @@ Restart Claude Code, then use the tools directly in conversation:
 
 ```
 > use the authentik mcp to audit recent security events
-> summarize access for user alice
+> summarize access for user <username>
 ```
 
 ## Configuration
@@ -128,6 +142,9 @@ Restart Claude Code, then use the tools directly in conversation:
 | GET | `/api/v3/events/events/?user_pk={id}` | Per-user events |
 | GET | `/api/v3/events/events/?action={type}` | Events by action type |
 | GET | `/api/v3/core/applications/` | Application list |
+| GET | `/api/v3/policies/bindings/?target={application_uuid}` | Application policy bindings |
+| GET | `/api/v3/outposts/instances/` | Outpost list |
+| PATCH | `/api/v3/outposts/instances/{outpost_uuid}/` | Trigger outpost configuration re-sync |
 | GET | `/api/v3/root/config/` | Instance capabilities (smoke test) |
 
 ## Roadmap
