@@ -1,0 +1,30 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Build
+        run: go build ./...
+      - name: Vet
+        run: go vet ./...
+      - name: Test
+        shell: bash
+        run: |
+          if find . -name '*_test.go' -type f -print -quit | grep -q .; then
+            go test ./...
+          else
+            echo 'No Go test files found; skipping go test.'
+          fi
+      - name: Smoke test
+        run: bash scripts/smoke-test.sh
