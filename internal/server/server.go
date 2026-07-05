@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"log/slog"
+	"os"
 
 	"github.com/mark3labs/mcp-go/server"
 	"github.com/zwelibam/authentik-mcp-server/internal/authentik"
@@ -21,12 +22,17 @@ func Run(ctx context.Context) error {
 	// Phase 1+2 (read-only)
 	handlers.RegisterSummarizeUserAccess(s, c)
 	handlers.RegisterAuditRecentSecurityEvents(s, c)
+	handlers.RegisterListGroups(s, c)
 
 	// Phase 3 (write operations)
-	handlers.RegisterListGroups(s, c)
-	handlers.RegisterCreateUser(s, c)
-	handlers.RegisterSetUserPassword(s, c)
-	handlers.RegisterManageUserGroup(s, c)
+	if os.Getenv("AUTHENTIK_ENABLE_WRITE") == "true" {
+		slog.Warn("write operations are active")
+		handlers.RegisterCreateUser(s, c)
+		handlers.RegisterSetUserPassword(s, c)
+		handlers.RegisterManageUserGroup(s, c)
+	} else {
+		slog.Info("write tools are disabled; set AUTHENTIK_ENABLE_WRITE=true to enable them")
+	}
 
 	slog.Info("starting MCP server", "transport", "stdio")
 	return server.ServeStdio(s)

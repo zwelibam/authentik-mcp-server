@@ -108,6 +108,7 @@ Restart Claude Code, then use the tools directly in conversation:
 | `AUTHENTIK_URL` | ✅ | — | Base URL of your Authentik instance |
 | `AUTHENTIK_TOKEN` | ✅ | — | API token (Settings → System → Tokens) |
 | `AUTHENTIK_TLS_SKIP_VERIFY` | — | `false` | Set to `true` to disable TLS verification (default: verify — use for self-signed certs) |
+| `AUTHENTIK_ENABLE_WRITE` | — | `false` | The server is read-only by default; set to `true` to register and expose write tools |
 
 ## Architecture
 
