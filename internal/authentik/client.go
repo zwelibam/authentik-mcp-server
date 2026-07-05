@@ -43,8 +43,43 @@ type Event struct {
 }
 
 type Application struct {
+	PK               string       `json:"pk"`
+	Name             string       `json:"name"`
+	Slug             string       `json:"slug"`
+	Provider         *int         `json:"provider"`
+	ProviderObj      *ProviderRef `json:"provider_obj"`
+	PolicyEngineMode string       `json:"policy_engine_mode"`
+}
+
+type ProviderRef struct {
+	PK   int    `json:"pk"`
 	Name string `json:"name"`
-	Slug string `json:"slug"`
+}
+
+type PolicyBinding struct {
+	PK        string     `json:"pk"`
+	Policy    *string    `json:"policy"`
+	Group     *string    `json:"group"`
+	User      *int       `json:"user"`
+	PolicyObj *ObjectRef `json:"policy_obj"`
+	GroupObj  *ObjectRef `json:"group_obj"`
+	UserObj   *ObjectRef `json:"user_obj"`
+	Negate    bool       `json:"negate"`
+	Enabled   bool       `json:"enabled"`
+	Order     int        `json:"order"`
+}
+
+type ObjectRef struct {
+	Name     string `json:"name"`
+	Username string `json:"username"`
+}
+
+type Outpost struct {
+	PK        string         `json:"pk"`
+	Name      string         `json:"name"`
+	Type      string         `json:"type"`
+	Providers []int          `json:"providers"`
+	Config    map[string]any `json:"config"`
 }
 
 type Config struct {
@@ -185,6 +220,34 @@ func (c *Client) post(ctx context.Context, path string, body any, out any) error
 	return nil
 }
 
+func (c *Client) patch(ctx context.Context, path string, body any, out any) error {
+	jsonBytes, err := json.Marshal(body)
+	if err != nil {
+		return err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPatch, c.baseURL+path, bytes.NewBuffer(jsonBytes))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+c.token)
+	req.Header.Set("Accept", "application/json")
+
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return fmt.Errorf("PATCH %s: %w", path, err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 400 {
+		return fmt.Errorf("PATCH %s: HTTP %d", path, resp.StatusCode)
+	}
+	if out != nil {
+		return json.NewDecoder(resp.Body).Decode(out)
+	}
+	return nil
+}
+
 // GetUsers searches for users by username.
 func (c *Client) GetUsers(ctx context.Context, search string) ([]User, error) {
 	var result paginatedResponse[User]
@@ -246,8 +309,33 @@ func (c *Client) GetEventsByAction(ctx context.Context, action string, pageSize 
 // GetApplications returns all applications.
 func (c *Client) GetApplications(ctx context.Context) ([]Application, error) {
 	var result paginatedResponse[Application]
-	err := c.get(ctx, "/api/v3/core/applications/", nil, &result)
+	err := c.get(ctx, "/api/v3/core/applications/", url.Values{"page_size": {"100"}}, &result)
 	return result.Results, err
+}
+
+// GetPolicyBindings returns bindings attached to a target object.
+func (c *Client) GetPolicyBindings(ctx context.Context, targetPK string) ([]PolicyBinding, error) {
+	var result paginatedResponse[PolicyBinding]
+	err := c.get(ctx, "/api/v3/policies/bindings/", url.Values{
+		"target":    {targetPK},
+		"page_size": {"100"},
+	}, &result)
+	return result.Results, err
+}
+
+// GetOutposts returns all configured outpost instances.
+func (c *Client) GetOutposts(ctx context.Context) ([]Outpost, error) {
+	var result paginatedResponse[Outpost]
+	err := c.get(ctx, "/api/v3/outposts/instances/", url.Values{"page_size": {"100"}}, &result)
+	return result.Results, err
+}
+
+// RefreshOutpost updates the existing config, causing Authentik to regenerate
+// and distribute the outpost configuration; the v3 API has no refresh action.
+func (c *Client) RefreshOutpost(ctx context.Context, outpost Outpost) error {
+	return c.patch(ctx, fmt.Sprintf("/api/v3/outposts/instances/%s/", outpost.PK), map[string]any{
+		"config": outpost.Config,
+	}, nil)
 }
 
 // GetConfig fetches the Authentik server configuration (for smoke test / version check).
