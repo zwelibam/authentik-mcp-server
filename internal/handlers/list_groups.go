@@ -16,7 +16,7 @@ func RegisterListGroups(s *server.MCPServer, c *authentik.Client) {
 		mcp.WithString("search", mcp.Description("Filter groups by name (case-insensitive contains match)")),
 	)
 	s.AddTool(tool, func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		groups, err := c.GetAllGroups(ctx)
+		groups, truncated, err := c.GetAllGroups(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("fetching groups: %w", err)
 		}
@@ -41,6 +41,9 @@ func RegisterListGroups(s *server.MCPServer, c *authentik.Client) {
 		sb.WriteString("| Name | PK |\n|------|----|\n")
 		for _, g := range groups {
 			fmt.Fprintf(&sb, "| %s | %s |\n", sanitizeMD(g.Name), sanitizeMD(g.PK))
+		}
+		if truncated {
+			sb.WriteString("\n_Note: results were truncated; not all pages were fetched._")
 		}
 		return mcp.NewToolResultText(sb.String()), nil
 	})

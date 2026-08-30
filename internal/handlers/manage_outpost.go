@@ -27,7 +27,7 @@ func RegisterManageOutpost(s *server.MCPServer, c *authentik.Client) {
 			return mcp.NewToolResultError("name argument is required for refresh"), nil
 		}
 
-		outposts, err := c.GetOutposts(ctx)
+		outposts, truncated, err := c.GetOutposts(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("fetching outposts: %w", err)
 		}
@@ -40,6 +40,9 @@ func RegisterManageOutpost(s *server.MCPServer, c *authentik.Client) {
 			for _, outpost := range outposts {
 				fmt.Fprintf(&sb, "| %s | %s | %d |\n",
 					sanitizeMD(outpost.Name), sanitizeMD(outpost.Type), len(outpost.Providers))
+			}
+			if truncated {
+				sb.WriteString("\n_Note: results were truncated; not all pages were fetched._")
 			}
 			return mcp.NewToolResultText(sb.String()), nil
 		}
@@ -58,6 +61,10 @@ func RegisterManageOutpost(s *server.MCPServer, c *authentik.Client) {
 		if err := c.RefreshOutpost(ctx, *outpost); err != nil {
 			return nil, fmt.Errorf("refreshing outpost: %w", err)
 		}
-		return mcp.NewToolResultText(fmt.Sprintf("Refreshed outpost %s", sanitizeMD(name))), nil
+		result := fmt.Sprintf("Refreshed outpost %s", sanitizeMD(name))
+		if truncated {
+			result += "\n\n_Note: results were truncated; not all pages were fetched._"
+		}
+		return mcp.NewToolResultText(result), nil
 	})
 }

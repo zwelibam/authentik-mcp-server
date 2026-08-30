@@ -37,6 +37,10 @@ func Run(ctx context.Context) error {
 		slog.Info("write tools are disabled; set AUTHENTIK_ENABLE_WRITE=true to enable them")
 	}
 
+	if authentik.AllowProtectedWrites() {
+		slog.Warn("AUTHENTIK_ALLOW_PROTECTED_WRITES is enabled — protected-account/group guardrails are bypassable")
+	}
+
 	slog.Info("starting MCP server", "transport", "stdio")
 	return server.ServeStdio(s)
 }

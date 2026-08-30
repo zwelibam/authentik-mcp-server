@@ -6,6 +6,7 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"net/url"
@@ -101,8 +102,9 @@ type SetPasswordRequest struct {
 }
 
 type paginatedResponse[T any] struct {
-	Count   int `json:"count"`
-	Results []T `json:"results"`
+	Count   int     `json:"count"`
+	Next    *string `json:"next"`
+	Results []T     `json:"results"`
 }
 
 // Client is the Authentik API client.
@@ -119,10 +121,18 @@ type retryTransport struct {
 }
 
 func (r *retryTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	if req.Method != http.MethodGet && req.Method != http.MethodHead {
+		return r.base.RoundTrip(req)
+	}
+
 	var resp *http.Response
 	var err error
 	for i := 0; i < r.maxTries; i++ {
 		if i > 0 {
+			if resp != nil && resp.Body != nil {
+				_, _ = io.Copy(io.Discard, resp.Body)
+				_ = resp.Body.Close()
+			}
 			time.Sleep(500 * time.Millisecond)
 		}
 		resp, err = r.base.RoundTrip(req)
@@ -173,7 +183,15 @@ func (c *Client) get(ctx context.Context, path string, params url.Values, out an
 	if len(params) > 0 {
 		u += "?" + params.Encode()
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
+	return c.doGet(ctx, u, path, out)
+}
+
+func (c *Client) getURL(ctx context.Context, fullURL string, out any) error {
+	return c.doGet(ctx, fullURL, fullURL, out)
+}
+
+func (c *Client) doGet(ctx context.Context, requestURL string, errorLabel string, out any) error {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, requestURL, nil)
 	if err != nil {
 		return err
 	}
@@ -182,12 +200,12 @@ func (c *Client) get(ctx context.Context, path string, params url.Values, out an
 
 	resp, err := c.http.Do(req)
 	if err != nil {
-		return fmt.Errorf("GET %s: %w", path, err)
+		return fmt.Errorf("GET %s: %w", errorLabel, err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode >= 400 {
-		return fmt.Errorf("GET %s: HTTP %d", path, resp.StatusCode)
+		return fmt.Errorf("GET %s: HTTP %d", errorLabel, resp.StatusCode)
 	}
 	return json.NewDecoder(resp.Body).Decode(out)
 }
@@ -262,11 +280,35 @@ func (c *Client) GetGroupsForUser(ctx context.Context, userPK int) ([]Group, err
 	return result.Results, err
 }
 
+func fetchAllPages[T any](ctx context.Context, c *Client, path string, params url.Values) ([]T, bool, error) {
+	const maxPages = 20
+
+	var page paginatedResponse[T]
+	if err := c.get(ctx, path, params, &page); err != nil {
+		return nil, false, err
+	}
+
+	results := append([]T(nil), page.Results...)
+	pages := 1
+	for page.Next != nil {
+		if pages >= maxPages {
+			return results, true, nil
+		}
+
+		nextURL := *page.Next
+		page = paginatedResponse[T]{}
+		if err := c.getURL(ctx, nextURL, &page); err != nil {
+			return nil, false, err
+		}
+		results = append(results, page.Results...)
+		pages++
+	}
+	return results, false, nil
+}
+
 // GetAllGroups returns all groups.
-func (c *Client) GetAllGroups(ctx context.Context) ([]Group, error) {
-	var result paginatedResponse[Group]
-	err := c.get(ctx, "/api/v3/core/groups/", url.Values{"page_size": {"100"}}, &result)
-	return result.Results, err
+func (c *Client) GetAllGroups(ctx context.Context) ([]Group, bool, error) {
+	return fetchAllPages[Group](ctx, c, "/api/v3/core/groups/", url.Values{"page_size": {"100"}})
 }
 
 // GetGroupByName returns the group matching name exactly, or nil if absent.
@@ -307,27 +349,21 @@ func (c *Client) GetEventsByAction(ctx context.Context, action string, pageSize 
 }
 
 // GetApplications returns all applications.
-func (c *Client) GetApplications(ctx context.Context) ([]Application, error) {
-	var result paginatedResponse[Application]
-	err := c.get(ctx, "/api/v3/core/applications/", url.Values{"page_size": {"100"}}, &result)
-	return result.Results, err
+func (c *Client) GetApplications(ctx context.Context) ([]Application, bool, error) {
+	return fetchAllPages[Application](ctx, c, "/api/v3/core/applications/", url.Values{"page_size": {"100"}})
 }
 
 // GetPolicyBindings returns bindings attached to a target object.
-func (c *Client) GetPolicyBindings(ctx context.Context, targetPK string) ([]PolicyBinding, error) {
-	var result paginatedResponse[PolicyBinding]
-	err := c.get(ctx, "/api/v3/policies/bindings/", url.Values{
+func (c *Client) GetPolicyBindings(ctx context.Context, targetPK string) ([]PolicyBinding, bool, error) {
+	return fetchAllPages[PolicyBinding](ctx, c, "/api/v3/policies/bindings/", url.Values{
 		"target":    {targetPK},
 		"page_size": {"100"},
-	}, &result)
-	return result.Results, err
+	})
 }
 
 // GetOutposts returns all configured outpost instances.
-func (c *Client) GetOutposts(ctx context.Context) ([]Outpost, error) {
-	var result paginatedResponse[Outpost]
-	err := c.get(ctx, "/api/v3/outposts/instances/", url.Values{"page_size": {"100"}}, &result)
-	return result.Results, err
+func (c *Client) GetOutposts(ctx context.Context) ([]Outpost, bool, error) {
+	return fetchAllPages[Outpost](ctx, c, "/api/v3/outposts/instances/", url.Values{"page_size": {"100"}})
 }
 
 // RefreshOutpost updates the existing config, causing Authentik to regenerate

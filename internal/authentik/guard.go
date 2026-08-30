@@ -51,5 +51,5 @@ func AllowProtectedWrites() bool {
 }
 
 func WarnProtectedBypass(target string) {
-	slog.Warn("protected-object write allowed via AUTHENTIK_ALLOW_PROTECTED_WRITES", "target", target)
+	slog.Error("protected-object write allowed via AUTHENTIK_ALLOW_PROTECTED_WRITES", "target", target)
 }
