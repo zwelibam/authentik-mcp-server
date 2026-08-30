@@ -89,12 +89,13 @@ type Config struct {
 }
 
 type CreateUserRequest struct {
-	Username string   `json:"username"`
-	Name     string   `json:"name"`
-	Email    string   `json:"email"`
-	IsActive bool     `json:"is_active"`
-	Groups   []string `json:"groups"`
-	Path     string   `json:"path,omitempty"`
+	Username string `json:"username"`
+	Name     string `json:"name"`
+	Email    string `json:"email"`
+	IsActive bool   `json:"is_active"`
+	// Groups is client-derived and overwritten by CreateUser from resolved groups.
+	Groups []string `json:"groups"`
+	Path   string   `json:"path,omitempty"`
 }
 
 type SetPasswordRequest struct {
@@ -381,24 +382,50 @@ func (c *Client) GetConfig(ctx context.Context) (*Config, error) {
 	return &cfg, err
 }
 
-// CreateUser creates an Authentik user.
-func (c *Client) CreateUser(ctx context.Context, req CreateUserRequest) (*User, error) {
+// CreateUser creates an Authentik user. Guards on req.Username plus every
+// resolved group name. req.Groups is derived here: the client overwrites it
+// from the groups argument, so the PKs sent to the API are exactly the
+// guarded objects.
+func (c *Client) CreateUser(ctx context.Context, req CreateUserRequest, groups []Group) (*User, error) {
+	names := make([]string, len(groups))
+	pks := make([]string, len(groups))
+	for i, g := range groups {
+		names[i], pks[i] = g.Name, g.PK
+	}
+	if err := guardWrite("create", []string{req.Username}, names); err != nil {
+		return nil, err
+	}
+	req.Groups = pks
 	var user User
-	err := c.post(ctx, "/api/v3/core/users/", req, &user)
-	return &user, err
+	if err := c.post(ctx, "/api/v3/core/users/", req, &user); err != nil {
+		return nil, err
+	}
+	return &user, nil
 }
 
-// SetUserPassword sets a user's password.
-func (c *Client) SetUserPassword(ctx context.Context, userPK int, password string) error {
-	return c.post(ctx, fmt.Sprintf("/api/v3/core/users/%d/set_password/", userPK), SetPasswordRequest{Password: password}, nil)
+// SetUserPassword sets a user's password. Guards on user.Username.
+func (c *Client) SetUserPassword(ctx context.Context, user User, password string) error {
+	if err := guardWrite("set password for", []string{user.Username}, nil); err != nil {
+		return err
+	}
+	return c.post(ctx, fmt.Sprintf("/api/v3/core/users/%d/set_password/", user.PK),
+		SetPasswordRequest{Password: password}, nil)
 }
 
-// AddUserToGroup adds a user to a group.
-func (c *Client) AddUserToGroup(ctx context.Context, groupPK string, userPK int) error {
-	return c.post(ctx, fmt.Sprintf("/api/v3/core/groups/%s/add_user/", groupPK), map[string]int{"pk": userPK}, nil)
+// AddUserToGroup guards on both user.Username and group.Name.
+func (c *Client) AddUserToGroup(ctx context.Context, group Group, user User) error {
+	if err := guardWrite("modify group membership of", []string{user.Username}, []string{group.Name}); err != nil {
+		return err
+	}
+	return c.post(ctx, fmt.Sprintf("/api/v3/core/groups/%s/add_user/", group.PK),
+		map[string]int{"pk": user.PK}, nil)
 }
 
-// RemoveUserFromGroup removes a user from a group.
-func (c *Client) RemoveUserFromGroup(ctx context.Context, groupPK string, userPK int) error {
-	return c.post(ctx, fmt.Sprintf("/api/v3/core/groups/%s/remove_user/", groupPK), map[string]int{"pk": userPK}, nil)
+// RemoveUserFromGroup removes a user from a group. Identical guard to AddUserToGroup.
+func (c *Client) RemoveUserFromGroup(ctx context.Context, group Group, user User) error {
+	if err := guardWrite("modify group membership of", []string{user.Username}, []string{group.Name}); err != nil {
+		return err
+	}
+	return c.post(ctx, fmt.Sprintf("/api/v3/core/groups/%s/remove_user/", group.PK),
+		map[string]int{"pk": user.PK}, nil)
 }

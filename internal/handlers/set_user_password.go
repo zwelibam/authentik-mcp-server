@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"crypto/rand"
+	"errors"
 	"fmt"
 	"log/slog"
 	"math/big"
@@ -58,14 +59,10 @@ func RegisterSetUserPassword(s *server.MCPServer, c *authentik.Client) {
 			return mcp.NewToolResultError(fmt.Sprintf("user not found: %s", sanitizeMD(username))), nil
 		}
 
-		if authentik.IsProtectedUser(username) {
-			if !authentik.AllowProtectedWrites() {
-				return mcp.NewToolResultError(fmt.Sprintf("refusing to set password for protected account %q (see AUTHENTIK_PROTECTED_USERS / AUTHENTIK_ALLOW_PROTECTED_WRITES)", username)), nil
+		if err := c.SetUserPassword(ctx, *foundUser, password); err != nil {
+			if errors.Is(err, authentik.ErrProtectedObject) {
+				return mcp.NewToolResultError(err.Error()), nil
 			}
-			authentik.WarnProtectedBypass(username)
-		}
-
-		if err := c.SetUserPassword(ctx, foundUser.PK, password); err != nil {
 			return nil, fmt.Errorf("setting password: %w", err)
 		}
 		if generate {

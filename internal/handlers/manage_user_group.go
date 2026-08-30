@@ -2,9 +2,9 @@ package handlers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
-	"strings"
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
@@ -59,35 +59,17 @@ func RegisterManageUserGroup(s *server.MCPServer, c *authentik.Client) {
 			return mcp.NewToolResultError(fmt.Sprintf("group not found: %s", sanitizeMD(groupName))), nil
 		}
 
-		protectedUser := authentik.IsProtectedUser(username)
-		protectedGroup := authentik.IsProtectedGroup(groupName)
-		if protectedUser || protectedGroup {
-			if !authentik.AllowProtectedWrites() {
-				var guarded []string
-				if protectedUser {
-					guarded = append(guarded, fmt.Sprintf("user %q", username))
-				}
-				if protectedGroup {
-					guarded = append(guarded, fmt.Sprintf("group %q", groupName))
-				}
-				return mcp.NewToolResultError(fmt.Sprintf("refusing to modify protected %s (see AUTHENTIK_PROTECTED_USERS / AUTHENTIK_PROTECTED_GROUPS / AUTHENTIK_ALLOW_PROTECTED_WRITES)", strings.Join(guarded, " and "))), nil
-			}
-			if protectedUser {
-				authentik.WarnProtectedBypass(username)
-			}
-			if protectedGroup {
-				authentik.WarnProtectedBypass(groupName)
-			}
-		}
-
 		preposition := "to"
 		if action == "add" {
-			err = c.AddUserToGroup(ctx, group.PK, user.PK)
+			err = c.AddUserToGroup(ctx, *group, *user)
 		} else {
 			preposition = "from"
-			err = c.RemoveUserFromGroup(ctx, group.PK, user.PK)
+			err = c.RemoveUserFromGroup(ctx, *group, *user)
 		}
 		if err != nil {
+			if errors.Is(err, authentik.ErrProtectedObject) {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
 			return nil, fmt.Errorf("%sing user group: %w", action, err)
 		}
 
