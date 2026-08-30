@@ -16,7 +16,7 @@ func RegisterListApplications(s *server.MCPServer, c *authentik.Client) {
 		mcp.WithString("name", mcp.Description("Filter applications by name (case-insensitive contains match)")),
 	)
 	s.AddTool(tool, func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		applications, err := c.GetApplications(ctx)
+		applications, truncated, err := c.GetApplications(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("fetching applications: %w", err)
 		}
@@ -48,6 +48,9 @@ func RegisterListApplications(s *server.MCPServer, c *authentik.Client) {
 			}
 			fmt.Fprintf(&sb, "| %s | %s | %s |\n",
 				sanitizeMD(application.Name), sanitizeMD(application.Slug), sanitizeMD(provider))
+		}
+		if truncated {
+			sb.WriteString("\n_Note: results were truncated; not all pages were fetched._")
 		}
 		return mcp.NewToolResultText(sb.String()), nil
 	})

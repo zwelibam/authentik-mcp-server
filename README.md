@@ -20,6 +20,8 @@ Exposes Authentik identity operations as callable tools in [Claude Code](https:/
 
 Write-gated tools are registered only when `AUTHENTIK_ENABLE_WRITE=true`.
 
+The `set_user_password` tool accepts an optional `generate: true` boolean parameter to generate a random password server-side instead of accepting one as input; this is recommended over supplying a plaintext password.
+
 ### `summarize_user_access`
 
 Returns a structured JSON summary of a user's identity, group memberships, recent activity, and accessible applications.
@@ -123,6 +125,9 @@ Restart Claude Code, then use the tools directly in conversation:
 | `AUTHENTIK_TOKEN` | ✅ | — | API token (Settings → System → Tokens) |
 | `AUTHENTIK_TLS_SKIP_VERIFY` | — | `false` | Set to `true` to disable TLS verification (default: verify — use for self-signed certs) |
 | `AUTHENTIK_ENABLE_WRITE` | — | `false` | The server is read-only by default; set to `true` to register and expose write tools |
+| `AUTHENTIK_PROTECTED_USERS` | — | `akadmin` only | Comma-separated usernames that `set_user_password`, `manage_user_group`, and `create_user` refuse to write to. Always includes `akadmin`; this value extends the denylist and cannot remove `akadmin` protection. |
+| `AUTHENTIK_PROTECTED_GROUPS` | — | empty | Comma-separated group names that `manage_user_group` and `create_user` refuse to write to. No groups are protected out of the box; set this to admin/superuser group name(s) at deploy time. |
+| `AUTHENTIK_ALLOW_PROTECTED_WRITES` | — | unset | Set to exactly `true` to bypass the protected user/group denylists. Every bypass is logged at error severity. |
 
 ## Architecture
 

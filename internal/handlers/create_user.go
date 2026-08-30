@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"net/mail"
 	"strings"
 
 	"github.com/mark3labs/mcp-go/mcp"
@@ -27,7 +28,7 @@ func RegisterCreateUser(s *server.MCPServer, c *authentik.Client) {
 		}
 
 		email := strings.TrimSpace(req.GetString("email", ""))
-		if !strings.Contains(email, "@") {
+		if _, err := mail.ParseAddress(email); err != nil {
 			return mcp.NewToolResultError("invalid email address"), nil
 		}
 
@@ -61,6 +62,13 @@ func RegisterCreateUser(s *server.MCPServer, c *authentik.Client) {
 			resolvedPKs = append(resolvedPKs, group.PK)
 		}
 
+		if authentik.IsProtectedUser(username) {
+			if !authentik.AllowProtectedWrites() {
+				return mcp.NewToolResultError(fmt.Sprintf("refusing to create protected user: %s (see AUTHENTIK_PROTECTED_USERS / AUTHENTIK_ALLOW_PROTECTED_WRITES)", sanitizeMD(username))), nil
+			}
+			authentik.WarnProtectedBypass(username)
+		}
+
 		var protectedGroups []string
 		for _, groupName := range groupNames {
 			if authentik.IsProtectedGroup(groupName) {
@@ -87,7 +95,7 @@ func RegisterCreateUser(s *server.MCPServer, c *authentik.Client) {
 			IsActive: isActive,
 			Groups:   resolvedPKs,
 		}
-		slog.Info("create_user called", "username", username, "email", email)
+		slog.Info("create_user called", "username", username, "email", redactEmail(email))
 		created, err := c.CreateUser(ctx, createReq)
 		if err != nil {
 			return nil, fmt.Errorf("creating user: %w", err)
@@ -103,4 +111,12 @@ func RegisterCreateUser(s *server.MCPServer, c *authentik.Client) {
 		}
 		return mcp.NewToolResultText(response), nil
 	})
+}
+
+func redactEmail(email string) string {
+	at := strings.Index(email, "@")
+	if at <= 0 {
+		return "***"
+	}
+	return email[:1] + "***" + email[at:]
 }
