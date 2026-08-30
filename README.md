@@ -125,9 +125,9 @@ Restart Claude Code, then use the tools directly in conversation:
 | `AUTHENTIK_TOKEN` | ✅ | — | API token (Settings → System → Tokens) |
 | `AUTHENTIK_TLS_SKIP_VERIFY` | — | `false` | Set to `true` to disable TLS verification (default: verify — use for self-signed certs) |
 | `AUTHENTIK_ENABLE_WRITE` | — | `false` | The server is read-only by default; set to `true` to register and expose write tools |
-| `AUTHENTIK_PROTECTED_USERS` | — | `akadmin` only | Comma-separated usernames that `set_user_password`, `manage_user_group`, and `create_user` refuse to write to. Always includes `akadmin`; this value extends the denylist and cannot remove `akadmin` protection. |
-| `AUTHENTIK_PROTECTED_GROUPS` | — | empty | Comma-separated group names that `manage_user_group` and `create_user` refuse to write to. No groups are protected out of the box; set this to admin/superuser group name(s) at deploy time. |
-| `AUTHENTIK_ALLOW_PROTECTED_WRITES` | — | unset | Set to exactly `true` to bypass the protected user/group denylists. Every bypass is logged at error severity. |
+| `AUTHENTIK_PROTECTED_USERS` | — | `akadmin` only | Comma-separated usernames that client-layer mutating methods refuse to write to for `set_user_password`, `manage_user_group`, and `create_user`. Always includes `akadmin`; this value extends the denylist and cannot remove `akadmin` protection. |
+| `AUTHENTIK_PROTECTED_GROUPS` | — | empty | Comma-separated group names that client-layer mutating methods refuse to write to for `manage_user_group` and `create_user`. No groups are protected out of the box; set this to admin/superuser group name(s) at deploy time. |
+| `AUTHENTIK_ALLOW_PROTECTED_WRITES` | — | unset | Set to exactly `true` to bypass the client-layer protected user/group denylists. Every bypass is logged at error severity. |
 
 ## Architecture
 

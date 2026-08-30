@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/mail"
@@ -50,7 +51,7 @@ func RegisterCreateUser(s *server.MCPServer, c *authentik.Client) {
 			}
 		}
 
-		resolvedPKs := make([]string, 0, len(groupNames))
+		resolvedGroups := make([]authentik.Group, 0, len(groupNames))
 		for _, groupName := range groupNames {
 			group, err := c.GetGroupByName(ctx, groupName)
 			if err != nil {
@@ -59,33 +60,7 @@ func RegisterCreateUser(s *server.MCPServer, c *authentik.Client) {
 			if group == nil {
 				return mcp.NewToolResultError(fmt.Sprintf("group not found: %s", sanitizeMD(groupName))), nil
 			}
-			resolvedPKs = append(resolvedPKs, group.PK)
-		}
-
-		if authentik.IsProtectedUser(username) {
-			if !authentik.AllowProtectedWrites() {
-				return mcp.NewToolResultError(fmt.Sprintf("refusing to create protected user: %s (see AUTHENTIK_PROTECTED_USERS / AUTHENTIK_ALLOW_PROTECTED_WRITES)", sanitizeMD(username))), nil
-			}
-			authentik.WarnProtectedBypass(username)
-		}
-
-		var protectedGroups []string
-		for _, groupName := range groupNames {
-			if authentik.IsProtectedGroup(groupName) {
-				protectedGroups = append(protectedGroups, groupName)
-			}
-		}
-		if len(protectedGroups) > 0 {
-			if !authentik.AllowProtectedWrites() {
-				sanitizedProtectedGroups := make([]string, len(protectedGroups))
-				for i, groupName := range protectedGroups {
-					sanitizedProtectedGroups[i] = sanitizeMD(groupName)
-				}
-				return mcp.NewToolResultError(fmt.Sprintf("refusing to create user with protected group(s): %s (see AUTHENTIK_PROTECTED_GROUPS / AUTHENTIK_ALLOW_PROTECTED_WRITES)", strings.Join(sanitizedProtectedGroups, ", "))), nil
-			}
-			for _, groupName := range protectedGroups {
-				authentik.WarnProtectedBypass(groupName)
-			}
+			resolvedGroups = append(resolvedGroups, *group)
 		}
 
 		createReq := authentik.CreateUserRequest{
@@ -93,11 +68,13 @@ func RegisterCreateUser(s *server.MCPServer, c *authentik.Client) {
 			Name:     name,
 			Email:    email,
 			IsActive: isActive,
-			Groups:   resolvedPKs,
 		}
 		slog.Info("create_user called", "username", username, "email", redactEmail(email))
-		created, err := c.CreateUser(ctx, createReq)
+		created, err := c.CreateUser(ctx, createReq, resolvedGroups)
 		if err != nil {
+			if errors.Is(err, authentik.ErrProtectedObject) {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
 			return nil, fmt.Errorf("creating user: %w", err)
 		}
 
