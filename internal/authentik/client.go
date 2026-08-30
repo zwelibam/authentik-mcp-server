@@ -275,10 +275,11 @@ func (c *Client) GetUsers(ctx context.Context, search string) ([]User, error) {
 }
 
 // GetGroupsForUser returns groups the user belongs to.
-func (c *Client) GetGroupsForUser(ctx context.Context, userPK int) ([]Group, error) {
-	var result paginatedResponse[Group]
-	err := c.get(ctx, "/api/v3/core/groups/", url.Values{"members_by_pk": {fmt.Sprint(userPK)}}, &result)
-	return result.Results, err
+func (c *Client) GetGroupsForUser(ctx context.Context, userPK int) ([]Group, bool, error) {
+	return fetchAllPages[Group](ctx, c, "/api/v3/core/groups/", url.Values{
+		"members_by_pk": {fmt.Sprint(userPK)},
+		"page_size":     {"100"},
+	})
 }
 
 func fetchAllPages[T any](ctx context.Context, c *Client, path string, params url.Values) ([]T, bool, error) {
@@ -297,6 +298,15 @@ func fetchAllPages[T any](ctx context.Context, c *Client, path string, params ur
 		}
 
 		nextURL := *page.Next
+		parsedNextURL, err := url.Parse(nextURL)
+		if err != nil {
+			return results, true, nil
+		}
+		parsedBaseURL, err := url.Parse(c.baseURL)
+		if err != nil || parsedNextURL.Host != parsedBaseURL.Host {
+			return results, true, nil
+		}
+
 		page = paginatedResponse[T]{}
 		if err := c.getURL(ctx, nextURL, &page); err != nil {
 			return nil, false, err

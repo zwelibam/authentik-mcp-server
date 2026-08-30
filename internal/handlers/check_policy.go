@@ -57,7 +57,7 @@ func RegisterCheckPolicy(s *server.MCPServer, c *authentik.Client) {
 			return mcp.NewToolResultError(fmt.Sprintf("application not found: %s", sanitizeMD(slug))), nil
 		}
 
-		groups, err := c.GetGroupsForUser(ctx, user.PK)
+		groups, groupsTruncated, err := c.GetGroupsForUser(ctx, user.PK)
 		if err != nil {
 			return nil, fmt.Errorf("fetching user groups: %w", err)
 		}
@@ -91,7 +91,7 @@ func RegisterCheckPolicy(s *server.MCPServer, c *authentik.Client) {
 			}
 		}
 		sb.WriteString("\nThis is a read-only approximation. Direct user and group bindings are matched locally; policy bindings require Authentik's policy engine and are not evaluated here.")
-		if applicationsTruncated || bindingsTruncated {
+		if groupsTruncated || applicationsTruncated || bindingsTruncated {
 			sb.WriteString("\n\n_Note: results were truncated; not all pages were fetched._")
 		}
 		return mcp.NewToolResultText(sb.String()), nil
